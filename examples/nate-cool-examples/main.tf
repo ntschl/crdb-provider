@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     cockroachgke = {
-      
+      source = "terraform.local/local/cockroachgke"
+      version = "1.0.0"
     }
   }
 }
@@ -14,3 +15,4 @@ provider "cockroachgke" {
 }
 
 data "cockroachgke_example" "edu" {}
+

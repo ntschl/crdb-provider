@@ -2,8 +2,8 @@ package provider
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
-	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -20,7 +20,7 @@ func NewExampleDataSource() datasource.DataSource {
 
 // ExampleDataSource defines the data source implementation.
 type ExampleDataSource struct {
-	client *http.Client
+	db *sql.DB
 }
 
 // ExampleDataSourceModel describes the data source data model.
@@ -57,7 +57,7 @@ func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.Config
 		return
 	}
 
-	client, ok := req.ProviderData.(*http.Client)
+	client, ok := req.ProviderData.(*sql.DB)
 
 	if !ok {
 		resp.Diagnostics.AddError(
@@ -68,7 +68,7 @@ func (d *ExampleDataSource) Configure(ctx context.Context, req datasource.Config
 		return
 	}
 
-	d.client = client
+	d.db = client
 }
 
 func (d *ExampleDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {

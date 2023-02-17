@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	_ "github.com/lib/pq"
 )
 
 // Ensure CockroachGKEProvider satisfies various provider interfaces.
@@ -52,20 +53,20 @@ func (p *CockroachGKEProvider) Schema(ctx context.Context, req provider.SchemaRe
 		Attributes: map[string]schema.Attribute{
 			"host": schema.StringAttribute{
 				Description: "Host for the Cockroach database.",
-				Optional:    false,
+				Required:    true,
 			},
 			"username": schema.StringAttribute{
 				Description: "Username for the Cockroach user with cluster admin permissions.",
-				Optional:    false,
+				Required:    true,
 			},
 			"password": schema.StringAttribute{
 				Description: "Password for the Cockroach user with cluster admin permissions.",
-				Optional:    false,
 				Sensitive:   true,
+				Required:    true,
 			},
 			"certpath": schema.StringAttribute{
 				Description: "Path to certificate authority for Cockroach cluster.",
-				Optional:    false,
+				Required:    true,
 			},
 		},
 	}
