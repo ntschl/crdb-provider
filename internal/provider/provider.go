@@ -2,8 +2,6 @@ package provider
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -178,25 +176,6 @@ func (p *CockroachGKEProvider) DataSources(ctx context.Context) []func() datasou
 
 func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewDatabaseResource,
 	}
-}
-
-// Helper functions for cockroach connection
-func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
-		model.Username,
-		model.Password,
-		model.Host,
-		model.CertPath,
-	)
-	return cnxStr
-}
-
-func connectToCockroach(cnx string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cnx)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }

@@ -1,3 +1,3 @@
-resource "scaffolding_example" "example" {
-  configurable_attribute = "some-value"
+resource "cockroachgke_database" "nates_db" {
+    name = "nates_db"
 }
