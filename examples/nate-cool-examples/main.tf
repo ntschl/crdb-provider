@@ -14,5 +14,7 @@ provider "cockroachgke" {
   certpath = ""
 }
 
-data "cockroachgke_example" "edu" {}
+resource "cockroachgke_database" "nates_db" {
+    name = "nates_db"
+}
 
