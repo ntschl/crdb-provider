@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -25,7 +24,7 @@ func NewDatabaseResource() resource.Resource {
 
 // DatabaseResource defines the resource implementation.
 type DatabaseResource struct {
-	db *sql.DB
+	db *CockroachClient
 }
 
 // DatabaseResourceModel describes the resource data model.
@@ -50,6 +49,15 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 	}
 }
 
+// Configure adds the provider configured client to the data source.
+func (r *DatabaseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
+	if req.ProviderData == nil {
+		return
+	}
+
+	r.db = req.ProviderData.(*CockroachClient)
+}
+
 func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *DatabaseResourceModel
 
@@ -59,8 +67,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	cnx := "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
-	client, err := connectToCockroach(cnx)
+	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to connect to cockroach",
@@ -68,11 +75,12 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		)
 		return
 	}
+	defer client.Close()
 
 	sql := fmt.Sprintf("CREATE DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
-		resp.Diagnostics.AddError("Create db error", fmt.Sprintf("Unable to create database, got error: %s", err))
+		resp.Diagnostics.AddError("Create db error", fmt.Sprintf("Unable to create database, got error: %s", *r.db.ConnectionString))
 		return
 	}
 
@@ -120,8 +128,7 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	var data *DatabaseResourceModel
 	req.State.Get(ctx, &data)
 
-	cnx := "postgresql://root@localhost:26257/defaultdb?sslmode=disable"
-	client, err := connectToCockroach(cnx)
+	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
 			"Failed to connect to cockroach",
@@ -129,6 +136,8 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		)
 		return
 	}
+	defer client.Close()
+
 	sql := fmt.Sprintf("DROP DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
@@ -150,22 +159,4 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 
 func (r *DatabaseResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
 	resource.ImportStatePassthroughID(ctx, path.Root("id"), req, resp)
-}
-
-func connectToCockroach(cnx string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cnx)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
-		model.Username,
-		model.Password,
-		model.Host,
-		model.CertPath,
-	)
-	return cnxStr
 }
