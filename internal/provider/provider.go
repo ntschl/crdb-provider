@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -24,6 +25,19 @@ func New(version string) func() provider.Provider {
 			version: version,
 		}
 	}
+}
+
+type CockroachClient struct {
+	ConnectionString *string
+}
+
+func (c *CockroachClient) Connect() (*sql.DB, error) {
+	fmt.Println("*********** CONNECTION ************", c.ConnectionString)
+	db, err := sql.Open("postgres", *c.ConnectionString)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
 // CockroachGKEProvider defines the provider implementation.
@@ -157,14 +171,8 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 
 	// Create connection to cockroach cluster
 	cnx := generateConnectionString(data)
-	client, err := connectToCockroach(cnx)
-	if err != nil {
-		resp.Diagnostics.AddError(
-			"Failed to connect to cockroach",
-			err.Error(),
-		)
-		return
-	}
+	client := &CockroachClient{}
+	client.ConnectionString = &cnx
 
 	resp.DataSourceData = client
 	resp.ResourceData = client
@@ -178,25 +186,17 @@ func (p *CockroachGKEProvider) DataSources(ctx context.Context) []func() datasou
 
 func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
-		NewExampleResource,
+		NewDatabaseResource,
 	}
 }
 
-// Helper functions for cockroach connection
+// TODO: Change SSL mode back to verify-full
 func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
-		model.Username,
-		model.Password,
-		model.Host,
-		model.CertPath,
+	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=disable&sslrootcert=%s",
+		strings.Replace(model.Username.String(), "\"", "", -1),
+		strings.Replace(model.Password.String(), "\"", "", -1),
+		strings.Replace(model.Host.String(), "\"", "", -1),
+		strings.Replace(model.CertPath.String(), "\"", "", -1),
 	)
 	return cnxStr
-}
-
-func connectToCockroach(cnx string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cnx)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
 }
