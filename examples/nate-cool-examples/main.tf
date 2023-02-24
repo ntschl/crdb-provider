@@ -13,7 +13,3 @@ provider "cockroachgke" {
   password = ""
   certpath = ""
 }
-
-resource "cockroachgke_database" "nate_db" {
-    name = "nate_db"
-}

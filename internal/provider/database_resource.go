@@ -2,7 +2,9 @@ package provider
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -80,7 +82,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	sql := fmt.Sprintf("CREATE DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
-		resp.Diagnostics.AddError("Create db error", fmt.Sprintf("Unable to create database, got error: %s", *r.db.ConnectionString))
+		resp.Diagnostics.AddError("Create db error", fmt.Sprintf("Unable to create database, got error: %s", err))
 		return
 	}
 
@@ -101,13 +103,41 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	client, err := r.db.Connect()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to connect to cockroach",
+			err.Error(),
+		)
+		return
+	}
+
+	queryName := strings.Replace(data.Name.String(), "\"", "", -1)
+	var name string
+
+	q := fmt.Sprintf("SELECT name FROM crdb_internal.databases WHERE name = '%s'", queryName)
+	err = client.QueryRow(q).Scan(&name)
+	//resp.Diagnostics.AddError("Read db error", fmt.Sprintf("Unable to read database, got error: %s", queryName))
+	if err == sql.ErrNoRows {
+		data.Name = types.StringValue(name)
+		resp.State.RemoveResource(ctx)
+		//resp.Diagnostics.AddError("Read db error", fmt.Sprintf("Unable to read database, got error: %s", err))
+		//return
+	}
+
+	if types.StringValue(name) != data.Name {
+		data.Name = types.StringValue(name)
+		resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	}
+
+	defer client.Close()
+
 	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	//resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
