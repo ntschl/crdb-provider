@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -104,11 +105,11 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	defer client.Close()
 
 	// user := strings.Replace(data.Username.String(), "\"", "", -1)
-	// pw := strings.Replace(data.Password.String(), "\"", "", -1)
+	pw := strings.Replace(data.Password.String(), "\"", "", -1)
 	// db := strings.Replace(data.Database.String(), "\"", "", -1)
 
 	// Call the actual SQL for db creation
-	sql := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, data.Password)
+	sql := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
 	_, err = client.Exec(sql)
 	if err != nil {
 		// if strings.Contains(err.Error(), "does not exist") {
