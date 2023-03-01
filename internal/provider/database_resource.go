@@ -24,7 +24,7 @@ func NewDatabaseResource() resource.Resource {
 	return &DatabaseResource{}
 }
 
-// DatabaseResource defines the resource implementation.
+// DatabaseResource defines the resource implementation. Contains the cockroach client connection string.
 type DatabaseResource struct {
 	db *CockroachClient
 }
@@ -34,10 +34,12 @@ type DatabaseResourceModel struct {
 	Name types.String `tfsdk:"name"`
 }
 
+// Metadata appends the resource name to the provider name
 func (r *DatabaseResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
 	resp.TypeName = req.ProviderTypeName + "_database"
 }
 
+// Schema is the shape of the resource - what you need to supply
 func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		// This description is used by the documentation generator and the language server.
@@ -51,7 +53,7 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 	}
 }
 
-// Configure adds the provider configured client to the data source.
+// Configure adds the provider configured client to the resource
 func (r *DatabaseResource) Configure(_ context.Context, req resource.ConfigureRequest, _ *resource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
@@ -60,6 +62,7 @@ func (r *DatabaseResource) Configure(_ context.Context, req resource.ConfigureRe
 	r.db = req.ProviderData.(*CockroachClient)
 }
 
+// Create is for creating the database resource
 func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *DatabaseResourceModel
 
@@ -69,6 +72,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	// Create cockroach connection, defer close
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -79,6 +83,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 	defer client.Close()
 
+	// Call the actual SQL for db creation
 	sql := fmt.Sprintf("CREATE DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
@@ -98,6 +103,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
+// Read is called first each time - reads the cockroach internals for existing databases
 func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *DatabaseResourceModel
 
@@ -107,6 +113,7 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
+	// Connect to crdb
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -116,12 +123,15 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
+	// Get the name of the database in state
 	queryName := strings.Replace(data.Name.String(), "\"", "", -1)
 	var name string
 
+	// Query crdb for that database name
 	q := fmt.Sprintf("SELECT name FROM crdb_internal.databases WHERE name = '%s'", queryName)
 	err = client.QueryRow(q).Scan(&name)
 	//resp.Diagnostics.AddError("Read db error", fmt.Sprintf("Unable to read database, got error: %s", queryName))
+	// If no rows come back, remove the resource from state because it shouldn't be there
 	if err == sql.ErrNoRows {
 		data.Name = types.StringValue(name)
 		resp.State.RemoveResource(ctx)
@@ -129,6 +139,7 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 		//return
 	}
 
+	// This might not be doing anything lol
 	if types.StringValue(name) != data.Name {
 		data.Name = types.StringValue(name)
 		resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -154,10 +165,12 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
+// Delete resource from crdb
 func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
 	var data *DatabaseResourceModel
 	req.State.Get(ctx, &data)
 
+	// db connection
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -168,6 +181,7 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer client.Close()
 
+	// sql for db deletion
 	sql := fmt.Sprintf("DROP DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
