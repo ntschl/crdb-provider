@@ -200,7 +200,7 @@ func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.
 // TODO: Change SSL mode back to verify-full
 // Generates connection string for crdb
 func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=disable&sslrootcert=%s",
+	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
 		strings.Replace(model.Username.String(), "\"", "", -1),
 		strings.Replace(model.Password.String(), "\"", "", -1),
 		strings.Replace(model.Host.String(), "\"", "", -1),

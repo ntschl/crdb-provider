@@ -5,6 +5,6 @@ provider "terraform.local/local/cockroachgke" {
   version     = "1.0.0"
   constraints = "1.0.0"
   hashes = [
-    "h1:Y6XIJCr6oGHOdd5ZYKkx4pxVsajF+1nSR5SCYsuf5eQ=",
+    "h1:X/tMaZ1VgtYUkduhsnP329gNQD3ZcxDVmYAAQXNTSoY=",
   ]
 }

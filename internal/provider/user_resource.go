@@ -108,7 +108,7 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	// db := strings.Replace(data.Database.String(), "\"", "", -1)
 
 	// Call the actual SQL for db creation
-	sql := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s;", data.Database, data.Username)
+	sql := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, data.Password)
 	_, err = client.Exec(sql)
 	if err != nil {
 		// if strings.Contains(err.Error(), "does not exist") {
