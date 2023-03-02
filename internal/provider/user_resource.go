@@ -112,9 +112,13 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	var tables string
+	alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", data.Privileges, data.Username)
+	grant := fmt.Sprintf("GRANT SELECT ON * TO %s;", data.Username)
 	err = client.QueryRow("SHOW TABLES;").Scan(&tables)
 	if err == sql.ErrNoRows {
-		alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", data.Privileges, data.Username)
+		client.Exec(alter)
+	} else {
+		client.Exec(grant)
 		client.Exec(alter)
 	}
 	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", err.Error()))
