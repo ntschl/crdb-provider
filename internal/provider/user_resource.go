@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -86,7 +87,6 @@ func (r *UserResource) Configure(_ context.Context, req resource.ConfigureReques
 // Create is for creating the user resource
 func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *UserResourceModel
-
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -102,17 +102,22 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 	defer client.Close()
 
-	// tables, err := client.Query("SHOW TABLES;")
-	// resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", tables))
-
 	pw := strings.Replace(data.Password.String(), "\"", "", -1)
 
-	sql := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
-	_, err = client.Exec(sql)
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
+	_, err = client.Exec(query)
 	if err != nil {
 		resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", err))
 		return
 	}
+
+	var tables string
+	err = client.QueryRow("SHOW TABLES;").Scan(&tables)
+	if err == sql.ErrNoRows {
+		alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", data.Privileges, data.Username)
+		client.Exec(alter)
+	}
+	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", err.Error()))
 
 	tflog.Trace(ctx, "created a user")
 
