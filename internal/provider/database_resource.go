@@ -91,12 +91,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	// data.Name = types.StringValue(data.Name.String())
-
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
 	tflog.Trace(ctx, "created a database")
 
 	// Save data into Terraform state
@@ -130,7 +124,7 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 	// Query crdb for that database name
 	q := fmt.Sprintf("SELECT name FROM crdb_internal.databases WHERE name = '%s'", queryName)
 	err = client.QueryRow(q).Scan(&name)
-	//resp.Diagnostics.AddError("Read db error", fmt.Sprintf("Unable to read database, got error: %s", queryName))
+
 	// If no rows come back, remove the resource from state because it shouldn't be there
 	if err == sql.ErrNoRows {
 		data.Name = types.StringValue(name)
@@ -189,13 +183,7 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 		return
 	}
 
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	// data.Name = types.StringValue(data.Name.String())
-
-	// Write logs using the tflog package
-	// Documentation: https://terraform.io/plugin/log
-	tflog.Trace(ctx, "created a database")
+	tflog.Trace(ctx, "deleted a database")
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
