@@ -13,3 +13,14 @@ provider "cockroachgke" {
   password = "nate"
   certpath = "/users/nate/certs/ca.crt"
 }
+
+resource "cockroachgke_database" "nate_db" {
+  name = "nate_db"
+}
+
+resource "cockroachgke_user" "nate_user" {
+  username = "nate2"
+  password = "natepw"
+  database = cockroachgke_database.nate_db.name
+  privileges = ["select", "insert", "update"]
+}

@@ -34,7 +34,7 @@ type UserResourceModel struct {
 	Username   types.String `tfsdk:"username"`
 	Password   types.String `tfsdk:"password"`
 	Database   types.String `tfsdk:"database"`
-	Privileges types.String `tfsdk:"privileges"`
+	Privileges types.List   `tfsdk:"privileges"`
 }
 
 // var privileges = map[string]bool{
@@ -67,7 +67,8 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				MarkdownDescription: "Database to which the user belongs",
 				Required:            true,
 			},
-			"privileges": schema.StringAttribute{
+			"privileges": schema.ListAttribute{
+				ElementType:         types.StringType,
 				MarkdownDescription: "Privileges of the user",
 				Optional:            true,
 			},
@@ -111,9 +112,23 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
+	privString := ""
+	privList := data.Privileges.Elements()
+	last := len(privList) - 1
+	for i, s := range privList {
+		if i < last {
+			privString = privString + s.String() + ", "
+		} else {
+			privString = privString + s.String()
+		}
+	}
+	privileges := strings.Replace(privString, "\"", "", -1)
+
+	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", privileges))
+
 	var tables string
-	alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", data.Privileges, data.Username)
-	grant := fmt.Sprintf("GRANT SELECT ON * TO %s;", data.Username)
+	alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", privileges, data.Username)
+	grant := fmt.Sprintf("GRANT %s ON * TO %s;", privileges, data.Username)
 	err = client.QueryRow("SHOW TABLES;").Scan(&tables)
 	if err == sql.ErrNoRows {
 		client.Exec(alter)
@@ -121,7 +136,6 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		client.Exec(grant)
 		client.Exec(alter)
 	}
-	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", err.Error()))
 
 	tflog.Trace(ctx, "created a user")
 
