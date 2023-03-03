@@ -179,7 +179,7 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	delete := fmt.Sprintf("DROP USER %s;", data.Username)
 
 	var tables string
-	err = client.QueryRow("SHOW TABLES;").Scan(&tables)
+	err = client.QueryRow(fmt.Sprintf("SET DATABASE=%s; SHOW TABLES;", data.Database)).Scan(&tables)
 	if err == sql.ErrNoRows {
 		_, err = client.Exec(alter + delete)
 		if err != nil {

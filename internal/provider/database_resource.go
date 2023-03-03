@@ -176,7 +176,7 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	defer client.Close()
 
 	// sql for db deletion
-	sql := fmt.Sprintf("DROP DATABASE %s", data.Name.String())
+	sql := fmt.Sprintf("DROP DATABASE %s RESTRICT", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
 		resp.Diagnostics.AddError("Delete db error", fmt.Sprintf("Unable to delete database, got error: %s", err))
