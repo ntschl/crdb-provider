@@ -189,7 +189,7 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	defer client.Close()
 
 	alter := fmt.Sprintf("SET DATABASE=%s; ALTER DEFAULT PRIVILEGES FOR ALL ROLES REVOKE ALL ON TABLES FROM %s; ", data.Database, data.Username)
-	revoke := fmt.Sprintf("REVOKE %s ON * FROM %s; ", data.Privileges, data.Username)
+	revoke := fmt.Sprintf("REVOKE ALL ON * FROM %s; ", data.Username)
 	delete := fmt.Sprintf("DROP USER %s;", data.Username)
 
 	var tables string
