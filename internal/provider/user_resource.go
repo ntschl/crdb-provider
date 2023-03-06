@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
+	"golang.org/x/exp/slices"
 
 	// "github.com/hashicorp/terraform-plugin-log/tflog"
 	_ "github.com/lib/pq"
@@ -37,12 +38,7 @@ type UserResourceModel struct {
 	Privileges types.List   `tfsdk:"privileges"`
 }
 
-// var privileges = map[string]bool{
-// 	"select": false,
-// 	"insert": false,
-// 	"update": false,
-// 	"delete": false,
-// }
+var privilegeSlice = []string{"select", "update", "insert", "delete"}
 
 // Metadata appends the resource name to the provider name
 func (r *UserResource) Metadata(ctx context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -104,18 +100,14 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	defer client.Close()
 
 	pw := strings.Replace(data.Password.String(), "\"", "", -1)
-
-	query := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
-	_, err = client.Exec(query)
-	if err != nil {
-		resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", err))
-		return
-	}
-
 	privString := ""
 	privList := data.Privileges.Elements()
 	last := len(privList) - 1
 	for i, s := range privList {
+		if !slices.Contains(privilegeSlice, strings.Replace(s.String(), "\"", "", -1)) {
+			resp.Diagnostics.AddError("Invalid privilege", fmt.Sprintf("Unable to set invalid privilege: %s", s))
+			return
+		}
 		if i < last {
 			privString = privString + s.String() + ", "
 		} else {
@@ -123,6 +115,13 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		}
 	}
 	privileges := strings.Replace(privString, "\"", "", -1)
+
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
+	_, err = client.Exec(query)
+	if err != nil {
+		resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", err))
+		return
+	}
 
 	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", privileges))
 
