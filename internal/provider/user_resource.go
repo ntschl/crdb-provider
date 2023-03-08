@@ -147,17 +147,53 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
-
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
+	// Connect to crdb
+	client, err := r.db.Connect()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to connect to cockroach",
+			err.Error(),
+		)
+		return
+	}
+
+	// Get the name of the database in state
+	queryName := strings.Replace(data.Username.String(), "\"", "", -1)
+	type rowData struct {
+		db        string
+		schema    string
+		relation  string
+		grantee   string
+		privilege string
+		grantable string
+	}
+	privilegeReadSlice := []string{}
+	//var name string
+
+	// Query crdb for the user's grants
+	q := fmt.Sprintf("SET DATABASE=%s; SHOW GRANTS FOR %s", data.Database, queryName)
+	rows, _ := client.Query(q)
+	for rows.Next() {
+		rowDataStruct := rowData{}
+		rows.Scan(&rowDataStruct.db, &rowDataStruct.schema, &rowDataStruct.relation, &rowDataStruct.grantee, &rowDataStruct.privilege, &rowDataStruct.grantable)
+		if !slices.Contains(privilegeReadSlice, rowDataStruct.privilege) {
+			privilegeReadSlice = append(privilegeReadSlice, rowDataStruct.privilege)
+		}
+	}
+	//resp.Diagnostics.AddError("Scanning", fmt.Sprintf("Here: %s", privilegeReadSlice))
+
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	defer client.Close()
 }
 
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *UserResourceModel
+	//var dataState *UserResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -165,6 +201,39 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// Connect to crdb
+	// client, err := r.db.Connect()
+	// if err != nil {
+	// 	resp.Diagnostics.AddError(
+	// 		"Failed to connect to cockroach",
+	// 		err.Error(),
+	// 	)
+	// 	return
+	// }
+
+	// planElements := []string{}
+	// stateElements := []string{}
+	// planList := data.Privileges.Elements()
+	// stateList := req.State.Get(ctx, &dataState)
+
+	// //turn each plan element to string
+	// for _, s := range planList {
+	// 	planElements = append(planElements, strings.Replace(s.String(), "\"", "", -1))
+	// }
+
+	// //turn each state element to string
+	// for _, s := range planList {
+	// 	stateElements = append(planElements, strings.Replace(s.String(), "\"", "", -1))
+	// }
+
+	// if (its in the plan but not the state) {
+	// 	need to grant permission, add to state
+	// } else if (its in the state but not the plan) {
+	// 	need to revoke permission, remove from state
+	// }
+
+	// resp.State.Get(ctx, &dataState)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
