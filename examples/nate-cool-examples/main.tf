@@ -22,5 +22,5 @@ resource "cockroachgke_user" "nate_user" {
   username = "nate2"
   password = "natepw"
   database = cockroachgke_database.nate_db.name
-  privileges = ["select", "update", "insert"]
+  privileges = ["select", "insert", "update"]
 }

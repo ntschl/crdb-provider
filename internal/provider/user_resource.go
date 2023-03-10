@@ -193,55 +193,9 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *UserResourceModel
-	//var dataState *UserResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
-
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Connect to crdb
-	// client, err := r.db.Connect()
-	// if err != nil {
-	// 	resp.Diagnostics.AddError(
-	// 		"Failed to connect to cockroach",
-	// 		err.Error(),
-	// 	)
-	// 	return
-	// }
-
-	// planElements := []string{}
-	// stateElements := []string{}
-	// planList := data.Privileges.Elements()
-	// stateList := req.State.Get(ctx, &dataState)
-
-	// //turn each plan element to string
-	// for _, s := range planList {
-	// 	planElements = append(planElements, strings.Replace(s.String(), "\"", "", -1))
-	// }
-
-	// //turn each state element to string
-	// for _, s := range planList {
-	// 	stateElements = append(planElements, strings.Replace(s.String(), "\"", "", -1))
-	// }
-
-	// if (its in the plan but not the state) {
-	// 	need to grant permission, add to state
-	// } else if (its in the state but not the plan) {
-	// 	need to revoke permission, remove from state
-	// }
-
-	// resp.State.Get(ctx, &dataState)
-
-	// Save updated data into Terraform state
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
-}
-
-func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *UserResourceModel
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -277,6 +231,126 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 	}
 
 	tflog.Trace(ctx, "deleted a user")
+
+	pw := strings.Replace(data.Password.String(), "\"", "", -1)
+	privString := ""
+	privList := data.Privileges.Elements()
+	last := len(privList) - 1
+	for i, s := range privList {
+		if !slices.Contains(privilegeSlice, strings.Replace(s.String(), "\"", "", -1)) {
+			resp.Diagnostics.AddError("Invalid privilege", fmt.Sprintf("Unable to set invalid privilege: %s", s))
+			return
+		}
+		if i < last {
+			privString = privString + s.String() + ", "
+		} else {
+			privString = privString + s.String()
+		}
+	}
+	privileges := strings.Replace(privString, "\"", "", -1)
+
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
+	_, err = client.Exec(query)
+	if err != nil {
+		resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", err))
+		return
+	}
+
+	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", privileges))
+
+	var tables2 string
+	alter = fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", privileges, data.Username)
+	grant := fmt.Sprintf("GRANT %s ON * TO %s;", privileges, data.Username)
+	err = client.QueryRow("SHOW TABLES;").Scan(&tables2)
+	if err == sql.ErrNoRows {
+		client.Exec(alter)
+	} else {
+		client.Exec(grant)
+		client.Exec(alter)
+	}
+
+	tflog.Trace(ctx, "created a user")
+
+	// Save updated data into Terraform state
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
+	var data *UserResourceModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	client, err := r.db.Connect()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to connect to cockroach",
+			err.Error(),
+		)
+		return
+	}
+	defer client.Close()
+
+	alter := fmt.Sprintf("SET DATABASE=%s; ALTER DEFAULT PRIVILEGES FOR ALL ROLES REVOKE ALL ON TABLES FROM %s; ", data.Database, data.Username)
+	revoke := fmt.Sprintf("REVOKE ALL ON * FROM %s; ", data.Username)
+	delete := fmt.Sprintf("DROP USER %s;", data.Username)
+
+	var delTables string
+	err = client.QueryRow(fmt.Sprintf("SET DATABASE=%s; SHOW TABLES;", data.Database)).Scan(&delTables)
+	if err == sql.ErrNoRows {
+		_, err = client.Exec(alter + delete)
+		if err != nil {
+			resp.Diagnostics.AddError("Delete user error (no tables)", fmt.Sprintf("Unable to delete user, got error: %s", err))
+			return
+		}
+	} else {
+		_, err = client.Exec(alter + revoke + delete)
+		if err != nil {
+			resp.Diagnostics.AddError("Delete user error (tables)", fmt.Sprintf("Unable to delete user, got error: %s", err))
+			return
+		}
+	}
+	tflog.Trace(ctx, "deleted a user")
+
+	pw := strings.Replace(data.Password.String(), "\"", "", -1)
+	privString := ""
+	privList := data.Privileges.Elements()
+	last := len(privList) - 1
+	for i, s := range privList {
+		if !slices.Contains(privilegeSlice, strings.Replace(s.String(), "\"", "", -1)) {
+			resp.Diagnostics.AddError("Invalid privilege", fmt.Sprintf("Unable to set invalid privilege: %s", s))
+			return
+		}
+		if i < last {
+			privString = privString + s.String() + ", "
+		} else {
+			privString = privString + s.String()
+		}
+	}
+	privileges := strings.Replace(privString, "\"", "", -1)
+
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE USER %s WITH PASSWORD '%s';", data.Database, data.Username, pw)
+	_, err = client.Exec(query)
+	if err != nil {
+		resp.Diagnostics.AddError("Create user error", fmt.Sprintf("Unable to create user, got error: %s", err))
+		return
+	}
+
+	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", privileges))
+
+	var createTables string
+	alter = fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", privileges, data.Username)
+	grant := fmt.Sprintf("GRANT %s ON * TO %s;", privileges, data.Username)
+	err = client.QueryRow("SHOW TABLES;").Scan(&createTables)
+	if err == sql.ErrNoRows {
+		client.Exec(alter)
+	} else {
+		client.Exec(grant)
+		client.Exec(alter)
+	}
+
+	tflog.Trace(ctx, "created a user")
 
 	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
