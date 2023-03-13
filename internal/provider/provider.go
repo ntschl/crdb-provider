@@ -27,12 +27,13 @@ func New(version string) func() provider.Provider {
 	}
 }
 
+// Pass around the connection string in a struct
 type CockroachClient struct {
 	ConnectionString *string
 }
 
+// Connect to cockroach
 func (c *CockroachClient) Connect() (*sql.DB, error) {
-	fmt.Println("*********** CONNECTION ************", c.ConnectionString)
 	db, err := sql.Open("postgres", *c.ConnectionString)
 	if err != nil {
 		return nil, err
@@ -56,11 +57,13 @@ type CockroachGKEProviderModel struct {
 	CertPath types.String `tfsdk:"certpath"`
 }
 
+// Metadata is for naming the proivder and its resources and data sources.
 func (p *CockroachGKEProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
 	resp.TypeName = "cockroachgke"
 	resp.Version = p.version
 }
 
+// Schema is the shape of the provider itself - what you give it when you implement it
 func (p *CockroachGKEProvider) Schema(ctx context.Context, req provider.SchemaRequest, resp *provider.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Description: "Interact with Cockroach.",
@@ -86,6 +89,7 @@ func (p *CockroachGKEProvider) Schema(ctx context.Context, req provider.SchemaRe
 	}
 }
 
+// Configure checks the configurations are present, and then connects to cockroach, passing the connection to the resources and data sources
 func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var data CockroachGKEProviderModel
 
@@ -133,41 +137,41 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
-	// if data.Host.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("host"),
-	// 		"Missing Cockroach database host",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach host.",
-	// 	)
-	// }
+	if data.Host.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("host"),
+			"Missing Cockroach database host",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach host.",
+		)
+	}
 
-	// if data.Username.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("username"),
-	// 		"Missing Cockroach database username",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach username.",
-	// 	)
-	// }
+	if data.Username.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("username"),
+			"Missing Cockroach database username",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach username.",
+		)
+	}
 
-	// if data.Password.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("password"),
-	// 		"Missing Cockroach database password",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach password.",
-	// 	)
-	// }
+	if data.Password.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password"),
+			"Missing Cockroach database password",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach password.",
+		)
+	}
 
-	// if data.CertPath.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("certpath"),
-	// 		"Missing Cockroach database cert path",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
-	// 	)
-	// }
+	if data.CertPath.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("certpath"),
+			"Missing Cockroach database cert path",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
+		)
+	}
 
-	// if resp.Diagnostics.HasError() {
-	// 	return
-	// }
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Create connection to cockroach cluster
 	cnx := generateConnectionString(data)
@@ -178,21 +182,25 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 	resp.ResourceData = client
 }
 
+// Not implemented
 func (p *CockroachGKEProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
 	return []func() datasource.DataSource{
 		NewExampleDataSource,
 	}
 }
 
+// Assigns the resources to the provider
 func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewDatabaseResource,
+		NewUserResource,
 	}
 }
 
 // TODO: Change SSL mode back to verify-full
+// Generates connection string for crdb
 func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=disable&sslrootcert=%s",
+	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
 		strings.Replace(model.Username.String(), "\"", "", -1),
 		strings.Replace(model.Password.String(), "\"", "", -1),
 		strings.Replace(model.Host.String(), "\"", "", -1),

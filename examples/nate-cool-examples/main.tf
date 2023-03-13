@@ -9,7 +9,7 @@ terraform {
 
 provider "cockroachgke" {
   host     = "localhost"
-  username = "root"
-  password = ""
-  certpath = ""
+  username = "nate"
+  password = "nate"
+  certpath = "/users/nate/certs/ca.crt"
 }
