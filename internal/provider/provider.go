@@ -137,41 +137,41 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 		return
 	}
 
-	// if data.Host.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("host"),
-	// 		"Missing Cockroach database host",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach host.",
-	// 	)
-	// }
+	if data.Host.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("host"),
+			"Missing Cockroach database host",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach host.",
+		)
+	}
 
-	// if data.Username.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("username"),
-	// 		"Missing Cockroach database username",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach username.",
-	// 	)
-	// }
+	if data.Username.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("username"),
+			"Missing Cockroach database username",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach username.",
+		)
+	}
 
-	// if data.Password.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("password"),
-	// 		"Missing Cockroach database password",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach password.",
-	// 	)
-	// }
+	if data.Password.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("password"),
+			"Missing Cockroach database password",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the Cockroach password.",
+		)
+	}
 
-	// if data.CertPath.ValueString() == "" {
-	// 	resp.Diagnostics.AddAttributeError(
-	// 		path.Root("certpath"),
-	// 		"Missing Cockroach database cert path",
-	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
-	// 	)
-	// }
+	if data.CertPath.ValueString() == "" {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("certpath"),
+			"Missing Cockroach database cert path",
+			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
+		)
+	}
 
-	// if resp.Diagnostics.HasError() {
-	// 	return
-	// }
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	// Create connection to cockroach cluster
 	cnx := generateConnectionString(data)
