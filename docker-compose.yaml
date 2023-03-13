@@ -1,0 +1,47 @@
+version: '3.9'
+
+services:
+  init-ca:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-ca --certs-dir=/certs --ca-key=/ca/ca.key --allow-ca-key-reuse --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+  init-node:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-node localhost crdb --certs-dir=/certs --ca-key=/ca/ca.key  --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-ca:
+        condition: service_completed_successfully
+  init-client:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-client root --certs-dir=/certs --ca-key=/ca/ca.key  --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-node:
+        condition: service_completed_successfully
+  crdb:
+    image: cockroachdb/cockroach:v22.2.6
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    command: start-single-node --certs-dir=/certs
+    volumes:
+      - "${PWD}/cockroach-data/crdb:/cockroach/cockroach-data"
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-client:
+        condition: service_completed_successfully
+  init-db:
+    image: cockroachdb/cockroach:v22.2.6
+    command: sql --certs-dir=/certs --host=crdb --execute="CREATE USER nate WITH LOGIN PASSWORD 'nate';GRANT admin to nate;"
+    volumes:      
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      crdb:
+        condition: service_healthy
