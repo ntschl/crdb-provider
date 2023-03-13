@@ -31,7 +31,8 @@ type DatabaseResource struct {
 
 // DatabaseResourceModel describes the resource data model.
 type DatabaseResourceModel struct {
-	Name types.String `tfsdk:"name"`
+	Name              types.String `tfsdk:"name"`
+	DisableProtection types.Bool   `tfsdk:"disable_protection"`
 }
 
 // Metadata appends the resource name to the provider name
@@ -42,12 +43,15 @@ func (r *DatabaseResource) Metadata(ctx context.Context, req resource.MetadataRe
 // Schema is the shape of the resource - what you need to supply
 func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: "Database resource",
 		Attributes: map[string]schema.Attribute{
 			"name": schema.StringAttribute{
 				MarkdownDescription: "Name of the database",
 				Required:            true,
+			},
+			"disable_protection": schema.BoolAttribute{
+				MarkdownDescription: "Optional disable delete protection for tables",
+				Optional:            true,
 			},
 		},
 	}
@@ -66,13 +70,11 @@ func (r *DatabaseResource) Configure(_ context.Context, req resource.ConfigureRe
 func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *DatabaseResourceModel
 
-	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Create cockroach connection, defer close
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -83,7 +85,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 	}
 	defer client.Close()
 
-	// Call the actual SQL for db creation
 	sql := fmt.Sprintf("CREATE DATABASE %s", data.Name.String())
 	_, err = client.Exec(sql)
 	if err != nil {
@@ -93,7 +94,6 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 
 	tflog.Trace(ctx, "created a database")
 
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -101,13 +101,11 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *DatabaseResourceModel
 
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Connect to crdb
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -117,23 +115,17 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 		return
 	}
 
-	// Get the name of the database in state
 	queryName := strings.Replace(data.Name.String(), "\"", "", -1)
 	var name string
 
-	// Query crdb for that database name
 	q := fmt.Sprintf("SELECT name FROM crdb_internal.databases WHERE name = '%s'", queryName)
 	err = client.QueryRow(q).Scan(&name)
 
-	// If no rows come back, remove the resource from state because it shouldn't be there
 	if err == sql.ErrNoRows {
 		data.Name = types.StringValue(name)
 		resp.State.RemoveResource(ctx)
-		//resp.Diagnostics.AddError("Read db error", fmt.Sprintf("Unable to read database, got error: %s", err))
-		//return
 	}
 
-	// This might not be doing anything lol
 	if types.StringValue(name) != data.Name {
 		data.Name = types.StringValue(name)
 		resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -148,14 +140,12 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *DatabaseResourceModel
 
-	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -164,7 +154,6 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	var data *DatabaseResourceModel
 	req.State.Get(ctx, &data)
 
-	// db connection
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -175,17 +164,22 @@ func (r *DatabaseResource) Delete(ctx context.Context, req resource.DeleteReques
 	}
 	defer client.Close()
 
-	// sql for db deletion
-	sql := fmt.Sprintf("DROP DATABASE %s RESTRICT", data.Name.String())
+	sql := ""
+	disabled := data.DisableProtection.ValueBool()
+
+	if disabled {
+		sql = fmt.Sprintf("DROP DATABASE %s CASCADE", data.Name.String())
+	} else {
+		sql = fmt.Sprintf("DROP DATABASE %s RESTRICT", data.Name.String())
+	}
+
 	_, err = client.Exec(sql)
 	if err != nil {
 		resp.Diagnostics.AddError("Delete db error", fmt.Sprintf("Unable to delete database, got error: %s", err))
 		return
 	}
-
 	tflog.Trace(ctx, "deleted a database")
 
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 

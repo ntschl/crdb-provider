@@ -48,7 +48,6 @@ func (r *UserResource) Metadata(ctx context.Context, req resource.MetadataReques
 // Schema is the shape of the resource - what you need to supply
 func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		// This description is used by the documentation generator and the language server.
 		MarkdownDescription: "User resource",
 		Attributes: map[string]schema.Attribute{
 			"username": schema.StringAttribute{
@@ -123,8 +122,6 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 		return
 	}
 
-	//resp.Diagnostics.AddError("Set db error", fmt.Sprintf("Unable to set db, got error: %s", privileges))
-
 	var tables string
 	alter := fmt.Sprintf("ALTER DEFAULT PRIVILEGES FOR ALL ROLES GRANT %s ON TABLES TO %s;", privileges, data.Username)
 	grant := fmt.Sprintf("GRANT %s ON * TO %s;", privileges, data.Username)
@@ -137,21 +134,17 @@ func (r *UserResource) Create(ctx context.Context, req resource.CreateRequest, r
 	}
 
 	tflog.Trace(ctx, "created a user")
-
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *UserResourceModel
 
-	// Read Terraform prior state data into the model
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Connect to crdb
 	client, err := r.db.Connect()
 	if err != nil {
 		resp.Diagnostics.AddError(
@@ -161,7 +154,6 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		return
 	}
 
-	// Get the name of the database in state
 	queryName := strings.Replace(data.Username.String(), "\"", "", -1)
 	type rowData struct {
 		db        string
@@ -172,9 +164,7 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		grantable string
 	}
 	privilegeReadSlice := []string{}
-	//var name string
 
-	// Query crdb for the user's grants
 	q := fmt.Sprintf("SET DATABASE=%s; SHOW GRANTS FOR %s", data.Database, queryName)
 	rows, _ := client.Query(q)
 	for rows.Next() {
@@ -184,15 +174,19 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 			privilegeReadSlice = append(privilegeReadSlice, rowDataStruct.privilege)
 		}
 	}
-	//resp.Diagnostics.AddError("Scanning", fmt.Sprintf("Here: %s", privilegeReadSlice))
 
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 	defer client.Close()
 }
 
 func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *UserResourceModel
+	var state *UserResourceModel
+
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
@@ -209,10 +203,21 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 	defer client.Close()
 
-	// DELETE THE USER - CAN WE JUST CALL DELETE INSTEAD OF REPEATING THE CODE?
-	alter := fmt.Sprintf("SET DATABASE=%s; ALTER DEFAULT PRIVILEGES FOR ALL ROLES REVOKE ALL ON TABLES FROM %s; ", data.Database, data.Username)
-	revoke := fmt.Sprintf("REVOKE ALL ON * FROM %s; ", data.Username)
-	delete := fmt.Sprintf("DROP USER %s;", data.Username)
+	alter := ""
+	revoke := ""
+	delete := ""
+
+	// Check for username change
+	if state.Username != data.Username {
+		alter = fmt.Sprintf("SET DATABASE=%s; ALTER DEFAULT PRIVILEGES FOR ALL ROLES REVOKE ALL ON TABLES FROM %s; ", data.Database, state.Username)
+		revoke = fmt.Sprintf("REVOKE ALL ON * FROM %s; ", state.Username)
+		delete = fmt.Sprintf("DROP USER %s;", state.Username)
+	} else {
+		// DELETE THE USER - CAN WE JUST CALL DELETE INSTEAD OF REPEATING THE CODE?
+		alter = fmt.Sprintf("SET DATABASE=%s; ALTER DEFAULT PRIVILEGES FOR ALL ROLES REVOKE ALL ON TABLES FROM %s; ", data.Database, data.Username)
+		revoke = fmt.Sprintf("REVOKE ALL ON * FROM %s; ", data.Username)
+		delete = fmt.Sprintf("DROP USER %s;", data.Username)
+	}
 
 	var tables string
 	err = client.QueryRow(fmt.Sprintf("SET DATABASE=%s; SHOW TABLES;", data.Database)).Scan(&tables)
@@ -269,8 +274,6 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	tflog.Trace(ctx, "created a user")
-
-	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
@@ -311,8 +314,6 @@ func (r *UserResource) Delete(ctx context.Context, req resource.DeleteRequest, r
 		}
 	}
 	tflog.Trace(ctx, "deleted a user")
-
-	// Save data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
