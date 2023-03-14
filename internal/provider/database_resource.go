@@ -134,7 +134,7 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 	defer client.Close()
 
 	// Save updated data into Terraform state
-	//resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
 func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {

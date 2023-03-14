@@ -181,7 +181,7 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 		}
 	}
 
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	//resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 	defer client.Close()
 }
 
