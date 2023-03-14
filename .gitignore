@@ -38,7 +38,7 @@ website/vendor
 cockroach-data
 
 # Ignore some terryforms
-.terraform.lock.hcl
+*.terraform.lock.hcl*
 .terraform
 
 # Ignore certs
