@@ -166,12 +166,18 @@ func (r *UserResource) Read(ctx context.Context, req resource.ReadRequest, resp 
 	privilegeReadSlice := []string{}
 
 	q := fmt.Sprintf("SET DATABASE=%s; SHOW GRANTS FOR %s", data.Database, queryName)
-	rows, _ := client.Query(q)
-	for rows.Next() {
-		rowDataStruct := rowData{}
-		rows.Scan(&rowDataStruct.db, &rowDataStruct.schema, &rowDataStruct.relation, &rowDataStruct.grantee, &rowDataStruct.privilege, &rowDataStruct.grantable)
-		if !slices.Contains(privilegeReadSlice, rowDataStruct.privilege) {
-			privilegeReadSlice = append(privilegeReadSlice, rowDataStruct.privilege)
+
+	rows, err := client.Query(q)
+	if err != nil {
+		resp.State.RemoveResource(ctx)
+		return
+	} else {
+		for rows.Next() {
+			rowDataStruct := rowData{}
+			rows.Scan(&rowDataStruct.db, &rowDataStruct.schema, &rowDataStruct.relation, &rowDataStruct.grantee, &rowDataStruct.privilege, &rowDataStruct.grantable)
+			if !slices.Contains(privilegeReadSlice, rowDataStruct.privilege) {
+				privilegeReadSlice = append(privilegeReadSlice, rowDataStruct.privilege)
+			}
 		}
 	}
 
