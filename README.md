@@ -62,3 +62,17 @@ In order to run the full suite of Acceptance tests, run `make testacc`.
 ```shell
 make testacc
 ```
+
+## To do local provider development
+Update the following in your ~/.terraformrc
+```terraform
+provider_installation { 
+  filesystem_mirror {
+    path = "/Users/YOURUSERNAMEHERE/.terraform.d/plugins"
+   } 
+   direct {
+    exclude = ["terraform.local/*/*"]
+   }
+}
+```
+make build

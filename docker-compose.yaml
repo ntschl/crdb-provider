@@ -1,0 +1,89 @@
+version: '3.9'
+
+services:
+  init-ca:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-ca --certs-dir=/certs --ca-key=/ca/ca.key --allow-ca-key-reuse --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+  init-node:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-node crdb-0 crdb-1 crdb-2 localhost --certs-dir=/certs --ca-key=/ca/ca.key  --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-ca:
+        condition: service_completed_successfully
+  init-client:
+    image: cockroachdb/cockroach:v22.2.6
+    command: cert create-client root --certs-dir=/certs --ca-key=/ca/ca.key  --overwrite
+    volumes:      
+      - "${PWD}/certs/ca:/ca"
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-node:
+        condition: service_completed_successfully
+  crdb-0:
+    image: cockroachdb/cockroach:v22.2.6
+    container_name: crdb-0
+    hostname: crdb-0
+    command: start --cluster-name=tftest --certs-dir=/certs --listen-addr=crdb-0:26257 --advertise-addr=crdb-0:26257 --http-addr=crdb-0:8080 --join=crdb-0:26257,crdb-1:26258,crdb-2:26259
+    volumes:
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      init-client:
+        condition: service_completed_successfully
+
+  crdb-init:
+    container_name: init
+    image: cockroachdb/cockroach:v22.2.6
+    command: init --host=crdb-0 --cluster-name=tftest --certs-dir=/certs
+    volumes:
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      - crdb-0
+  crdb-1:
+    image: cockroachdb/cockroach:v22.2.6
+    container_name: crdb-1
+    hostname: crdb-1
+    command: start --cluster-name=tftest --certs-dir=/certs --advertise-addr=crdb-1:26258 --listen-addr=crdb-1:26258 --http-addr=crdb-1:8081 --join=crdb-0:26257,crdb-1:26258,crdb-2:26259
+    volumes:
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      crdb-0:
+        condition: service_healthy
+  crdb-2:
+    image: cockroachdb/cockroach:v22.2.6
+    container_name: crdb-2
+    hostname: crdb-2
+    command: start --cluster-name=tftest --certs-dir=/certs --listen-addr=crdb-2:26259 --advertise-addr=crdb-2:26259 --http-addr=crdb-2:8082 --join=crdb-0:26257,crdb-1:26258,crdb-2:26259
+    volumes:
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      crdb-0:
+        condition: service_healthy
+
+  lb:
+    container_name: lb
+    hostname: lb
+    image: timveil/dynamic-haproxy:latest
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - NODES=crdb-0 crdb-1 crdb-2
+    depends_on:
+      - crdb-0
+      - crdb-1
+      - crdb-2
+  init-db:
+    image: cockroachdb/cockroach:v22.2.6
+    command: sql --certs-dir=/certs --host=crdb-0:26257 --execute="CREATE USER nate WITH LOGIN PASSWORD 'nate';GRANT admin to nate;"
+    volumes:      
+      - "${PWD}/certs/certs:/certs"
+    depends_on:
+      crdb-0:
+        condition: service_healthy
