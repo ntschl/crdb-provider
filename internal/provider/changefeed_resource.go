@@ -2,6 +2,8 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -21,9 +23,10 @@ type ChangefeedResource struct {
 
 // ChangefeedResourceModel describes the resource data model.
 type ChangefeedResourceModel struct {
-	TableName  types.String `tfsdk:"name"`
-	BucketName types.String `tfsdk:"disable_protection"`
+	TableName  types.String `tfsdk:"table"`
+	BucketName types.String `tfsdk:"bucket"`
 	Token      types.String `tfsdk:"token"`
+	Database   types.String `tfsdk:"database"`
 }
 
 // Metadata appends the resource name to the provider name
@@ -36,16 +39,20 @@ func (r *ChangefeedResource) Schema(ctx context.Context, req resource.SchemaRequ
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "Changefeed resource",
 		Attributes: map[string]schema.Attribute{
-			"table_name": schema.StringAttribute{
+			"table": schema.StringAttribute{
 				MarkdownDescription: "Name of the table receiving the changefeed",
 				Required:            true,
 			},
-			"bucket_name": schema.BoolAttribute{
+			"bucket": schema.StringAttribute{
 				MarkdownDescription: "Bucket to send the changefeed to",
 				Required:            true,
 			},
-			"token": schema.BoolAttribute{
+			"token": schema.StringAttribute{
 				MarkdownDescription: "Optional disable delete protection for tables",
+				Required:            true,
+			},
+			"database": schema.StringAttribute{
+				MarkdownDescription: "Database for the tables receiving a changefeed",
 				Required:            true,
 			},
 		},
@@ -71,17 +78,27 @@ func (r *ChangefeedResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to create example, got error: %s", err))
-	//     return
-	// }
+	client, err := r.db.Connect()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to connect to cockroach",
+			err.Error(),
+		)
+		return
+	}
 
-	// For the purposes of this example code, hardcoding a response value to
-	// save into the Terraform state.
-	// data.Id = types.StringValue("example-id")
+	database := strings.Replace(data.Database.String(), "\"", "", -1)
+	table := strings.Replace(data.TableName.String(), "\"", "", -1)
+	bucket := strings.Replace(data.BucketName.String(), "\"", "", -1)
+	token := strings.Replace(data.Token.String(), "\"", "", -1)
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=specified&CREDENTIALS=%s';", database, table, bucket, token)
+
+	// id := client.QueryRow()
+	_, err = client.Exec(query)
+	if err != nil {
+		resp.Diagnostics.AddError("Create changefeed error", fmt.Sprintf("Unable to create changefeed, got error: %s", err))
+		return
+	}
 
 	// Write logs using the tflog package
 	// Documentation: https://terraform.io/plugin/log
