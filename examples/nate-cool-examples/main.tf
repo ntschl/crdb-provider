@@ -8,19 +8,13 @@ terraform {
 }
 
 provider "cockroachgke" {
-  host     = "localhost"
+  host     = "punchy-warthog-3928.g8z.cockroachlabs.cloud"
   username = "nate"
-  password = "nate"
-  certpath = "../../certs/certs/ca.crt"
+  password = "2pJmQ5pl0fD3-EVWob9UwA"
+  certpath = ""
 }
 
 resource "cockroachgke_database" "nate_db" {
   name = "nate_db"
 }
 
-resource "cockroachgke_user" "nate_user" {
-  username   = "nate2"
-  password   = "natepw"
-  database   = cockroachgke_database.nate_db.name
-  privileges = ["select", "update", "insert"]
-}
