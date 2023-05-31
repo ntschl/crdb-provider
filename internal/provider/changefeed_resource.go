@@ -138,21 +138,49 @@ func (r *ChangefeedResource) Read(ctx context.Context, req resource.ReadRequest,
 
 func (r *ChangefeedResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *ChangefeedResourceModel
+	var data2 *ChangefeedResourceModel
 
 	// Read Terraform plan data into the model
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &data2)...)
 
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// If applicable, this is a great opportunity to initialize any necessary
-	// provider client data and make a call using it.
-	// httpResp, err := r.client.Do(httpReq)
-	// if err != nil {
-	//     resp.Diagnostics.AddError("Client Error", fmt.Sprintf("Unable to update example, got error: %s", err))
-	//     return
-	// }
+	client, err := r.db.Connect()
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Failed to connect to cockroach",
+			err.Error(),
+		)
+		return
+	}
+	defer client.Close()
+
+	db := strings.Replace(data.Database.String(), "\"", "", -1)
+	id := strings.Replace(data2.JobID.String(), "\"", "", -1)
+
+	deleteQuery := fmt.Sprintf("SET DATABASE=%s; CANCEL JOB %s;", db, id)
+	_, err = client.Exec(deleteQuery)
+	if err != nil {
+		resp.Diagnostics.AddError("Update changefeed error (cancel)", fmt.Sprintf("Unable to update changefeed, got error: %s %s %s", err, db, id))
+		return
+	}
+
+	database := strings.Replace(data.Database.String(), "\"", "", -1)
+	table := strings.Replace(data.TableName.String(), "\"", "", -1)
+	bucket := strings.Replace(data.BucketName.String(), "\"", "", -1)
+	token := strings.Replace(data.Token.String(), "\"", "", -1)
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=specified&CREDENTIALS=%s';", database, table, bucket, token)
+
+	id = ""
+	err = client.QueryRow(query).Scan(&id)
+	if err != nil {
+		resp.Diagnostics.AddError("Update changefeed error (create)", fmt.Sprintf("Unable to update changefeed, got error: %s", err))
+		return
+	}
+	data.JobID = types.StringValue(id)
 
 	// Save updated data into Terraform state
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
