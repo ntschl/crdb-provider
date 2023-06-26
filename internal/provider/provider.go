@@ -83,7 +83,7 @@ func (p *CockroachGKEProvider) Schema(ctx context.Context, req provider.SchemaRe
 			},
 			"certpath": schema.StringAttribute{
 				Description: "Path to certificate authority for Cockroach cluster.",
-				Required:    true,
+				Optional:    true,
 			},
 		},
 	}
@@ -125,13 +125,13 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 		)
 	}
 
-	if data.CertPath.IsUnknown() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("certpath"),
-			"Unknown Cockroach database cert path",
-			"The provider cannot create a Cockroach database connection because there is an unknown configuration value for the path to the Cockroach certificate authority.",
-		)
-	}
+	// if data.CertPath.IsUnknown() {
+	// 	resp.Diagnostics.AddAttributeError(
+	// 		path.Root("certpath"),
+	// 		"Unknown Cockroach database cert path",
+	// 		"The provider cannot create a Cockroach database connection because there is an unknown configuration value for the path to the Cockroach certificate authority.",
+	// 	)
+	// }
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -161,13 +161,13 @@ func (p *CockroachGKEProvider) Configure(ctx context.Context, req provider.Confi
 		)
 	}
 
-	if data.CertPath.ValueString() == "" {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("certpath"),
-			"Missing Cockroach database cert path",
-			"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
-		)
-	}
+	// if data.CertPath.ValueString() == "" {
+	// 	resp.Diagnostics.AddAttributeError(
+	// 		path.Root("certpath"),
+	// 		"Missing Cockroach database cert path",
+	// 		"The provider cannot create a Cockroach database connection because there is a missing configuration value for the path to the Cockroach certificate authority.",
+	// 	)
+	// }
 
 	if resp.Diagnostics.HasError() {
 		return
@@ -194,17 +194,26 @@ func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.
 	return []func() resource.Resource{
 		NewDatabaseResource,
 		NewUserResource,
+		NewChangefeedResource,
 	}
 }
 
-// TODO: Change SSL mode back to verify-full
 // Generates connection string for crdb
 func generateConnectionString(model CockroachGKEProviderModel) string {
-	cnxStr := fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
-		strings.Replace(model.Username.String(), "\"", "", -1),
-		strings.Replace(model.Password.String(), "\"", "", -1),
-		strings.Replace(model.Host.String(), "\"", "", -1),
-		strings.Replace(model.CertPath.String(), "\"", "", -1),
-	)
+	cnxStr := ""
+	if model.CertPath.String() == "" {
+		cnxStr = fmt.Sprintf("postgresql://%s:%s@%s:26257defaultdb?sslmode=verify-full",
+			strings.Replace(model.Username.String(), "\"", "", -1),
+			strings.Replace(model.Password.String(), "\"", "", -1),
+			strings.Replace(model.Host.String(), "\"", "", -1),
+		)
+	} else {
+		cnxStr = fmt.Sprintf("postgres://%s:%s@%s:26257?sslmode=verify-full&sslrootcert=%s",
+			strings.Replace(model.Username.String(), "\"", "", -1),
+			strings.Replace(model.Password.String(), "\"", "", -1),
+			strings.Replace(model.Host.String(), "\"", "", -1),
+			strings.Replace(model.CertPath.String(), "\"", "", -1),
+		)
+	}
 	return cnxStr
 }
