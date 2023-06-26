@@ -198,7 +198,6 @@ func (p *CockroachGKEProvider) Resources(ctx context.Context) []func() resource.
 	}
 }
 
-// TODO: Change SSL mode back to verify-full
 // Generates connection string for crdb
 func generateConnectionString(model CockroachGKEProviderModel) string {
 	cnxStr := ""

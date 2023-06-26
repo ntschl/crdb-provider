@@ -23,11 +23,11 @@ type ChangefeedResource struct {
 
 // ChangefeedResourceModel describes the resource data model.
 type ChangefeedResourceModel struct {
-	TableName  types.String `tfsdk:"table"`
-	BucketName types.String `tfsdk:"bucket"`
-	Token      types.String `tfsdk:"token"`
-	Database   types.String `tfsdk:"database"`
-	JobID      types.String `tfsdk:"job_id"`
+	TableName      types.String `tfsdk:"table"`
+	BucketName     types.String `tfsdk:"bucket"`
+	ServiceAccount types.String `tfsdk:"service_account"`
+	Database       types.String `tfsdk:"database"`
+	JobID          types.String `tfsdk:"job_id"`
 }
 
 // Metadata appends the resource name to the provider name
@@ -48,8 +48,8 @@ func (r *ChangefeedResource) Schema(ctx context.Context, req resource.SchemaRequ
 				MarkdownDescription: "Bucket to send the changefeed to",
 				Required:            true,
 			},
-			"token": schema.StringAttribute{
-				MarkdownDescription: "Optional disable delete protection for tables",
+			"service_account": schema.StringAttribute{
+				MarkdownDescription: "Service account for bucket auth",
 				Required:            true,
 			},
 			"database": schema.StringAttribute{
@@ -96,8 +96,8 @@ func (r *ChangefeedResource) Create(ctx context.Context, req resource.CreateRequ
 	database := strings.Replace(data.Database.String(), "\"", "", -1)
 	table := strings.Replace(data.TableName.String(), "\"", "", -1)
 	bucket := strings.Replace(data.BucketName.String(), "\"", "", -1)
-	token := strings.Replace(data.Token.String(), "\"", "", -1)
-	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=specified&CREDENTIALS=%s';", database, table, bucket, token)
+	acc := strings.Replace(data.ServiceAccount.String(), "\"", "", -1)
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=implicit&ASSUME_ROLE=%s';", database, table, bucket, acc)
 
 	var id string
 	err = client.QueryRow(query).Scan(&id)
@@ -171,8 +171,8 @@ func (r *ChangefeedResource) Update(ctx context.Context, req resource.UpdateRequ
 	database := strings.Replace(data.Database.String(), "\"", "", -1)
 	table := strings.Replace(data.TableName.String(), "\"", "", -1)
 	bucket := strings.Replace(data.BucketName.String(), "\"", "", -1)
-	token := strings.Replace(data.Token.String(), "\"", "", -1)
-	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=specified&CREDENTIALS=%s';", database, table, bucket, token)
+	acc := strings.Replace(data.ServiceAccount.String(), "\"", "", -1)
+	query := fmt.Sprintf("SET DATABASE=%s; CREATE CHANGEFEED FOR TABLE %s INTO 'gs://%s?AUTH=implicit&ASSUME_ROLE=%s';", database, table, bucket, acc)
 
 	id = ""
 	err = client.QueryRow(query).Scan(&id)
